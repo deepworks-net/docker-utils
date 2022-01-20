@@ -30,7 +30,6 @@ Returns alpha from the tag v1.4.2-alpha. The 'v' is optional, IE 1.4.2-alpha wil
 - DOCKER_DOMAIN - The domain to publish to ie: docker.myrepo.com
 - IMAGE_PATH - The path where the image resides. IE mycompany
 - IMAGE_NAME - The name of the image. IE apache
-- BASEVER_FULL - The Full version tag of the image. IE v1.4.2
 
 ### BUILD_IMAGE
 Requires 3 parameters:

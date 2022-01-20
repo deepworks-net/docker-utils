@@ -3,7 +3,6 @@
 # DOCKER_DOMAIN = The domain to publish to. IE docker.myrepo.com (if a private repository) (optional, defaults to offical docker hub)
 # IMAGE_PATH = The path where the image resides. IE mycompany
 # IMAGE_NAME = The name of the image. IE apache
-# BASEVER_FULL = The Full version of the image. IE 1.0.0
 
 # Get The Major Version (IE 1)
 # $1 - The Full Version Tag (IE v1.4.2-alpha)
