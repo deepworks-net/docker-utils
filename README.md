@@ -1,4 +1,4 @@
-# Docker Utility Scripts (v1.1.0)
+# Docker Utility Scripts (v1.2.0)
 These scripts/libraries aid in common Docker development tasks like building, tagging and publishing images.
 
 # Current Scripts:
