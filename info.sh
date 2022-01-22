@@ -4,11 +4,13 @@
 # THEDIRECTORY = The directory where the branding is placed
 # THEEMAIL = Email address for the image info
 
+#echo "${THEDIRECTORY}"
+
 # Set default vars.
 THEFILE="${THEDIRECTORY}/info.txt";
 
 # Make the Directory
-mkdir -p ${THEDIRECTORY};
+mkdir -p "${THEDIRECTORY}";
 
 # Build/Append the file
 #

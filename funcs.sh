@@ -104,20 +104,24 @@ BUILD_IMAGE(){
     _PRIV="NO"
     if ! test -z "${DOCKER_DOMAIN}"; then _PRIV="YES"; fi
 
+    # Build the path
+    THEPATH=${IMAGE_NAME};
+    if ! test -z "${IMAGE_PATH}"; then THEPATH=${IMAGE_PATH}/$THEPATH; fi
+
     # make all tags
-    docker tag ${IMAGE_NAME}:$2 ${IMAGE_PATH}/${IMAGE_NAME}:${_BASEVER}
-    docker tag ${IMAGE_NAME}:$2 ${IMAGE_PATH}/${IMAGE_NAME}:${_BASEVER_WHOLE}
-    docker tag ${IMAGE_NAME}:$2 ${IMAGE_PATH}/${IMAGE_NAME}:${_BASEVER_FULL}
+    docker tag ${IMAGE_NAME}:$2 ${THEPATH}:${_BASEVER}
+    docker tag ${IMAGE_NAME}:$2 ${THEPATH}:${_BASEVER_WHOLE}
+    docker tag ${IMAGE_NAME}:$2 ${THEPATH}:${_BASEVER_FULL}
     if test "YES" = $_PRIV; then 
-        docker tag ${IMAGE_NAME}:$2 ${DOCKER_DOMAIN}/${IMAGE_PATH}/${IMAGE_NAME}:$2
-        docker tag ${IMAGE_NAME}:$2 ${DOCKER_DOMAIN}/${IMAGE_PATH}/${IMAGE_NAME}:${_BASEVER}
-        docker tag ${IMAGE_NAME}:$2 ${DOCKER_DOMAIN}/${IMAGE_PATH}/${IMAGE_NAME}:${_BASEVER_WHOLE}
-        docker tag ${IMAGE_NAME}:$2 ${DOCKER_DOMAIN}/${IMAGE_PATH}/${IMAGE_NAME}:${_BASEVER_FULL}
+        docker tag ${IMAGE_NAME}:$2 ${DOCKER_DOMAIN}/${THEPATH}:$2
+        docker tag ${IMAGE_NAME}:$2 ${DOCKER_DOMAIN}/${THEPATH}:${_BASEVER}
+        docker tag ${IMAGE_NAME}:$2 ${DOCKER_DOMAIN}/${THEPATH}:${_BASEVER_WHOLE}
+        docker tag ${IMAGE_NAME}:$2 ${DOCKER_DOMAIN}/${THEPATH}:${_BASEVER_FULL}
     fi
     if ! test "latest" = $2; then
-        docker tag ${IMAGE_NAME}:$2 ${IMAGE_PATH}/${IMAGE_NAME}:$2-latest;
+        docker tag ${IMAGE_NAME}:$2 ${THEPATH}:$2-latest;
         if test "YES" = $_PRIV; then 
-            docker tag ${IMAGE_NAME}:$2 ${DOCKER_DOMAIN}/${IMAGE_PATH}/${IMAGE_NAME}:$2-latest;
+            docker tag ${IMAGE_NAME}:$2 ${DOCKER_DOMAIN}/${THEPATH}:$2-latest;
         fi
     fi
 }
@@ -161,7 +165,8 @@ PUBLISH_IMAGE(){
     fi 
      _PRIV="NO"
     if ! test -z "${DOCKER_DOMAIN}"; then _PRIV="YES"; fi
-    _DOMAIN_PATH="${IMAGE_PATH}/";
+    _DOMAIN_PATH=""
+    if ! test -z "${IMAGE_PATH}"; then _DOMAIN_PATH="${IMAGE_PATH}/"; fi
     if test "YES" = $_PRIV; then 
         _DOMAIN_PATH="${DOCKER_DOMAIN}/${IMAGE_PATH}/";
     fi 
