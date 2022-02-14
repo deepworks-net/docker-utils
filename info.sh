@@ -1,31 +1,31 @@
 #!/bin/sh
 
-# THEAUTHOR = The Author Of The Image
-# THEDIRECTORY = The directory where the branding is placed
+# MAINTAINER = The Author Of The Image
+# HOMEDIR = The directory where the branding is placed
 # THEEMAIL = Email address for the image info
 
-#echo "${THEDIRECTORY}"
+#echo "${HOMEDIR}"
 
 # Set default vars.
-THEFILE="${THEDIRECTORY}/info.txt";
+THEFILE="${HOMEDIR}/info.txt";
 
 # Make the Directory
-mkdir -p "${THEDIRECTORY}";
+mkdir -p "${HOMEDIR}";
 
 # Build/Append the file
 #
 # 'Requires' the following parameters:
-# base_image_name - The Base Image Name IE centos
-# base_image_version - The Base Image Version IE 7.9.2009
-# image_name - The image name IE centos7
-# image_version - the image version IE 1.0.2
+# BASE_IMAGE_NAME - The Base Image Name IE centos
+# BASE_IMAGE_VERSION - The Base Image Version Tag IE 7.9.2009
+# IMAGE_NAME - The image name IE centos7
+# IMAGE_VERSION - the image version tag IE 1.0.2
 #
 echo "==========================================
 
-Image: ${image_name}:${image_version}
-Author: ${THEAUTHOR}
+Image: ${IMAGE_NAME}:${IMAGE_VERSION}
+Author: ${MAINTAINER}
 Email: ${THEEMAIL}
-Base Image: ${base_image_name}:${base_image_version}
+Base Image: ${BASE_IMAGE_NAME}:${BASE_IMAGE_VERSION}
 Build Date: $(TZ=America/New_York date)
 
 ==========================================" >>${THEFILE};

@@ -1,193 +1,386 @@
 #!/bin/sh
 
-# DOCKER_DOMAIN = The domain to publish to. IE docker.myrepo.com (if a private repository) (optional, defaults to offical docker hub)
-# IMAGE_PATH = The path where the image resides. IE mycompany
-# IMAGE_NAME = The name of the image. IE apache
+# The REGEX Pattern for what is considered a valid tag
+VALID_TAG_PATTERN='(((.*)(-))?(v?)([0-9]+)((\.)([0-9]+))?((\.)([0-9]+))?((-)(.*))?)'
 
-# Get The Major Version (IE 1)
+# Check if the Passed String is a 'valid' tag. IE in the form of:
+# ({prefix}-)? (v?{version}) (-{stage})?
+# $1 - The Tag to verify (IE centos8-v1.4.2-alpha)
+# 
+# Returns 'true' if valid, 'false' if not.
+IS_VALID_TAG(){
+    [[ $1 =~ $VALID_TAG_PATTERN ]] && echo "true" || echo "false"
+}
+
+# 'Extract' a substring from a Version Tag based on the capture group passed to the function
+# $1 - The Full Version Tag (IE centos8-v1.4.2-alpha)
+# $2 - The Capture Group - IE 3 Would return the prefix, if there is one, as that is it's capture group in the VALID_TAG_PATTERN regex
+# 
+# Returns the substring from the Full Version Tag based on the capture group number
+EXTRACT_FROM_TAG(){
+    test ! -z $1 && test ! -z $2 && [[ $1 =~ $VALID_TAG_PATTERN ]] && echo "${BASH_REMATCH[$2]}"
+}
+
+# Get The Build Prefix (IE centos8)
+# $1 - The Full Version Tag (IE centos8-v1.4.2-alpha)
+# 
+# Returns everything up to the first '-' from the tag centos8-v1.4.2-alpha. It will return 'centos8' from the tag 'centos8-v1.4.2-alpha'. The -{stage} is optional. centos8-v1.4.2 will return 'centos8'. Returns Empty String if it does not have a prefix.
+GET_BUILD_PREFIX(){ 
+    EXTRACT_FROM_TAG $1 3
+}
+
+# Get The Major Version Number (IE 1)
 # $1 - The Full Version Tag (IE v1.4.2-alpha)
 # 
-# Returns 1 from the tag v1.4.2-alpha. The v and -{version} are optional, IE 1.4.2 will also return 1.
+# Returns 1 from the tag v1.4.2-alpha. The {prefix}(-)v and (-){stage} are optional, IE 1.4.2 will also return 1.
 GET_MAJOR_VERSION(){
-    TRIMED_TAG=${1##*v};
-    FULL_VERSION=${TRIMED_TAG%-*};
-    IFS=. read major minor build <<<${FULL_VERSION}
-    echo "$major"
+    EXTRACT_FROM_TAG $1 6
 }
 
-# Get The Major Version (IE 1.4)
+# Get The Minor Version Number (IE 4)
 # $1 - The Full Version Tag (IE v1.4.2-alpha)
 # 
-# Returns 1.4 from the tag v1.4.2-alpha. The v and -{version} are optional, IE 1.4.2 will also return 1.4.
+# Returns 4 from the tag v1.4.2-alpha. The {prefix}v and -{stage} are optional, IE 1.4.2 will also return 4.
 GET_MINOR_VERSION(){
-    TRIMED_TAG=${1##*v};
-    FULL_VERSION=${TRIMED_TAG%-*};
-    IFS=. read major minor build <<<${FULL_VERSION}
-    echo "$major.$minor"
+    EXTRACT_FROM_TAG $1 9
 }
 
-# Get The Major Version (IE 1.4.2)
+# Get The Patch Version (IE 1.4.2)
 # $1 - The Full Version Tag (IE v1.4.2-alpha)
 # 
-# Returns 1.4.2 from the tag v1.4.2-alpha. The v and -{version} are optional, IE 1.4.2 will also return 1.4.2.
-GET_BUILD_VERSION(){
-    TRIMED_TAG=${1##*v};
-    echo "${TRIMED_TAG%-*}"
+# Returns 2 from the tag v1.4.2-alpha. The {prefix}v and -{stage} are optional, IE 1.4.2 will also return 2.
+GET_PATCH_VERSION(){
+    EXTRACT_FROM_TAG $1 12
 }
 
 # Get The Build Stage (IE alpha)
 # $1 - The Full Version Tag (IE v1.4.2-alpha)
 # 
-# Returns alpha from the tag v1.4.2-alpha. The v is optional, IE 1.4.2-alpha will also return alpha. If there is no build stage, an empty string is returned.
+# Returns alpha from the tag v1.4.2-alpha. The {prefix}v is optional, IE 1.4.2-alpha will also return alpha. If there is no build stage, an empty string is returned.
 GET_BUILD_STAGE(){
-    TRIMED_TAG=${1##*v};
-    BUILD_STAGE=${TRIMED_TAG##*-};
-    FULL_VERSION=${TRIMED_TAG%-*};
-    if test "$BUILD_STAGE"="$FULL_VERSION"; then BUILD_STAGE=""; fi
-    echo "$BUILD_STAGE"
+    EXTRACT_FROM_TAG $1 15
 }
 
-# Build and Tag Image
-# $1 - The service name from the docker-compose file to build. IE CentOS8
-# $2 - The image tag. IE centos8
-# $3 - The Version Tag. IE v1.4.2-alpha
-#
-# With the above examples the BUILD_IMAGE function would eval to:
-#
-#   docker-compose build CentOS8
-#
-#   docker tag apache:centos8 apache:centos8-latest
-#   docker tag apache:centos8 apache:centos8-1
-#   docker tag apache:centos8 apache:centos8-1.4
-#   docker tag apache:centos8 apache:centos8-1.4.2
-#   docker tag apache:centos8 docker.myrepo.com/mycompany/apache:centos8
-#   docker tag apache:centos8 docker.myrepo.com/mycompany/apache:centos8-latest
-#   docker tag apache:centos8 docker.myrepo.com/mycompany/apache:centos8-1
-#   docker tag apache:centos8 docker.myrepo.com/mycompany/apache:centos8-1.4
-#   docker tag apache:centos8 docker.myrepo.com/mycompany/apache:centos8-1.4.2
-#
-# If an image tag is 'latest', it will evaluate as follows instead:
-#
-#   docker-compose build CentOS8
-#
-#   docker tag apache:latest apache:1
-#   docker tag apache:latest apache:1.4
-#   docker tag apache:latest apache:1.4.2
-#   docker tag apache:latest docker.myrepo.com/mycompany/apache:latest
-#   docker tag apache:latest docker.myrepo.com/mycompany/apache:1
-#   docker tag apache:latest docker.myrepo.com/mycompany/apache:1.4
-#   docker tag apache:latest docker.myrepo.com/mycompany/apache:1.4.2
+# Get the KEY=VALUE pairs from a specified file and export them to the environment
+# $1 - The path of the file to load IE '.env' or 'settings/variables.txt'
 # 
-#  If the DOCKER_DOMAIN is empty, it will assume you are building for docker hub and will skip any tagging that includes the full repository name, ie:
-# 
-#   docker-compose build CentOS8
-#   
-#   docker tag apache:latest apache:1
-#   docker tag apache:latest apache:1.4
-#   docker tag apache:latest apache:1.4.2
-#   
-BUILD_IMAGE(){
-
-    # Build image
-    docker-compose build $1
-
-    _BUILD_VERSION=$(GET_BUILD_VERSION $3)
-    _MINOR_VERSION=$(GET_MINOR_VERSION $3)
-    _MAJOR_VERSION=$(GET_MAJOR_VERSION $3)
-
-    # 'latest' tag switch
-    _BASEVER=$2-${_MAJOR_VERSION}; _BASEVER_WHOLE=$2-${_MINOR_VERSION}; _BASEVER_FULL=$2-${_BUILD_VERSION};
-    if test "latest" = $2; then
-        _BASEVER=${_MAJOR_VERSION}; _BASEVER_WHOLE=${_MINOR_VERSION}; _BASEVER_FULL=${_BUILD_VERSION};
-    fi 
-
-    _PRIV="NO"
-    if ! test -z "${DOCKER_DOMAIN}"; then _PRIV="YES"; fi
-
-    # Build the path
-    THEPATH=${IMAGE_NAME};
-    if ! test -z "${IMAGE_PATH}"; then THEPATH=${IMAGE_PATH}/$THEPATH; fi
-
-    # make all tags
-    docker tag ${IMAGE_NAME}:$2 ${THEPATH}:${_BASEVER}
-    docker tag ${IMAGE_NAME}:$2 ${THEPATH}:${_BASEVER_WHOLE}
-    docker tag ${IMAGE_NAME}:$2 ${THEPATH}:${_BASEVER_FULL}
-    if test "YES" = $_PRIV; then 
-        docker tag ${IMAGE_NAME}:$2 ${DOCKER_DOMAIN}/${THEPATH}:$2
-        docker tag ${IMAGE_NAME}:$2 ${DOCKER_DOMAIN}/${THEPATH}:${_BASEVER}
-        docker tag ${IMAGE_NAME}:$2 ${DOCKER_DOMAIN}/${THEPATH}:${_BASEVER_WHOLE}
-        docker tag ${IMAGE_NAME}:$2 ${DOCKER_DOMAIN}/${THEPATH}:${_BASEVER_FULL}
-    fi
-    if ! test "latest" = $2; then
-        docker tag ${IMAGE_NAME}:$2 ${THEPATH}:$2-latest;
-        if test "YES" = $_PRIV; then 
-            docker tag ${IMAGE_NAME}:$2 ${DOCKER_DOMAIN}/${THEPATH}:$2-latest;
-        fi
-    fi
+# NOTE: This function currently expects the variable file to exist, and will not catch the error if not!
+GET_ENV_VARS(){
+    export $(cat $1 | sed 's/#.*//g' | xargs)
 }
 
-# Publish Image
-# $1 - The image tag. IE centos8
-# $2 - The Version Tag. IE v1.4.2-alpha
+# echo, then evaluate a statement or just echo it
+# $1 - The Statement to execute/echo
+# $2 - Debug? (YES|NO)
 #
-# With the above examples the PUBLISH_IMAGE functions would eval to:
+EVAL_LINE(){
+    [[ "${2:-${DOCKER_UTILS_DEBUG:-NO}}" = "YES" ]] && echo "$1" || ( echo "$1" && eval "$1")
+}
+
+# Perform the docker Tag lines for reusability
+# $1 - The Source Image Name and Tag IE 'centos8:1.4.2'
+# $2 - The New Image Tag IE 'centos8:latest'
+# $3 - Debug? (YES|NO)
 #
-#   docker push docker.myrepo.com/mycompany/apache:centos8
-#   docker push docker.myrepo.com/mycompany/apache:centos8-latest
-#   docker push docker.myrepo.com/mycompany/apache:centos8-1
-#   docker push docker.myrepo.com/mycompany/apache:centos8-1.4
-#   docker push docker.myrepo.com/mycompany/apache:centos8-1.4.2
-#
-# If an image tag is 'latest', it will evaluate as follows instead:
-#
-#   docker push docker.myrepo.com/mycompany/apache:latest
-#   docker push docker.myrepo.com/mycompany/apache:1
-#   docker push docker.myrepo.com/mycompany/apache:1.4
-#   docker push docker.myrepo.com/mycompany/apache:1.4.2
-# 
-# If the DOCKER_DOMAIN is empty, it will assume you are publishing to docker hub and will omit the domain name, ie:
-#
-#   docker push mycompany/apache:latest
-#   docker push mycompany/apache:1
-#   docker push mycompany/apache:1.4
-#   docker push mycompany/apache:1.4.2
+TAG_IMAGE(){
+    EVAL_LINE "docker tag $1 $2" "${3:-${DOCKER_UTILS_DEBUG:-NO}}"
+}
+
+# Perform the docker Publish lines for reusability
+# $1 - The Source Image Name and Tag to publish (full path!) (IE 'centos8:1.4.2')
+# $2 - Debug? (YES|NO)
 #
 PUBLISH_IMAGE(){
+    EVAL_LINE "docker push $1" "${2:-${DOCKER_UTILS_DEBUG:-NO}}"
+}
 
-    _BUILD_VERSION=$(GET_BUILD_VERSION $2)
-    _MINOR_VERSION=$(GET_MINOR_VERSION $2)
-    _MAJOR_VERSION=$(GET_MAJOR_VERSION $2)
-
-    # 'latest' tag switch
-    _BASEVER=$1-${_MAJOR_VERSION}; _BASEVER_WHOLE=$1-${_MINOR_VERSION}; _BASEVER_FULL=$1-${_BUILD_VERSION};
-    if test "latest" = $1; then
-        _BASEVER=${_MAJOR_VERSION}; _BASEVER_WHOLE=${_MINOR_VERSION}; _BASEVER_FULL=${_BUILD_VERSION};
-    fi 
-     _PRIV="NO"
-    if ! test -z "${DOCKER_DOMAIN}"; then _PRIV="YES"; fi
-    _DOMAIN_PATH=""
-    if ! test -z "${IMAGE_PATH}"; then _DOMAIN_PATH="${IMAGE_PATH}/"; fi
-    if test "YES" = $_PRIV; then 
-        _DOMAIN_PATH="${DOCKER_DOMAIN}/${IMAGE_PATH}/";
-    fi 
-
-    docker push ${_DOMAIN_PATH}${IMAGE_NAME}:$1
-    docker push ${_DOMAIN_PATH}${IMAGE_NAME}:${_BASEVER}
-    docker push ${_DOMAIN_PATH}${IMAGE_NAME}:${_BASEVER_WHOLE}
-    docker push ${_DOMAIN_PATH}${IMAGE_NAME}:${_BASEVER_FULL}
-    if ! test "latest" = $1; then
-        docker push ${_DOMAIN_PATH}${IMAGE_NAME}:$1-latest;
+# Perform the docker Tag and Publish lines for reusability
+# $1 - The Source Image Name and Tag IE 'centos8:1.4.2'
+# $2 - The New Image Tag IE 'centos8:latest'
+# $3 - Publish the image? (YES|NO|ONLY)
+# $4 - Debug? (YES|NO)
+#
+GET_TAG_N_PUBLISH(){
+    if [ "$3" != "ONLY" ]; then
+        EVAL_LINE "docker tag $1 $2" "${4:-${DOCKER_UTILS_DEBUG:-NO}}"
+    fi
+    if [ "$3" = "YES" ] || [ "$3" = "ONLY" ]; then 
+        EVAL_LINE "docker push $2" "${4:-${DOCKER_UTILS_DEBUG:-NO}}"
     fi
 }
 
-# Build and then Publish the resulting image
-# $1 - The service name from the docker-compose file to build. IE CentOS8
-# $2 - The image tag. IE centos8
-# $3 - The Version Tag. IE v1.4.2-alpha
+# Behavior can be overridden with the following Environmental Variables (passed parameters will override these values!):
+# 
+# DOCKER_UTILS_STRIP_PREFIX
+#   Ignore the tag prefix (if it exists) when building and tagging
+#   Possible values (YES|NO) Default 'NO'
+# 
+# DOCKER_UTILS_STRIP_VERSION
+#   Ignore the version prefix (v) (if it exists) when building and tagging
+#   Possible values (YES|NO) Default 'YES'
+# 
+# DOCKER_UTILS_USE_COMPOSE
+#   Use Compose, not Docker, to build the image. The default is 'NO' (ie use docker cli)
+#   Possible values (YES|NO) Default 'NO'
+# 
+# DOCKER_UTILS_TAG_EM
+#   Default tagging behavior, Build a single image or make semantic versioning tags as well (ie latest, 1.4.2, 1.4, etc)
+#   Possible values (YES|NO) Default 'NO'
+# 
+# DOCKER_UTILS_DOCKER_DOMAIN
+#   If connecting to a custom docker domain, set it here. IE 'docker.deepworks.net'
+#   Default ''
+# 
+# DOCKER_UTILS_DOCKER_GROUP
+#   If the custom docker domain supports groups, it can be set here. Must have DOCKER_UTILS_DOCKER_DOMAIN defined. IE 'images/production'
+#   Default ''
+# 
+# DOCKER_UTILS_DEBUG
+#   Set debug mode. Only print build and tagging information, don't actually build or publish.
+#   Possible values (YES|NO) Default 'NO'
+# 
+# DOCKER_UTILS_PUBLISH
+#   Sets if the image should be published after being built and/or tagged. 'ONLY' will publish any existing images
+#   Possible values (YES|NO|ONLY) Default 'NO'
+# 
+
+# Build and/or Tag and/or Publish Images
+# 
+# Possible Parameters/Flags that can be passed:
+#   --strip-prefix 
+#           Ignore the tag prefix (if it exists) when building and tagging - Default = 'NO'
+#   --strip-version
+#           Ignore the version prefix (v) (if it exists) when building and tagging - Default = 'YES'
+#   -c|--compose
+#           Use Compose, not Docker, to build the image. The default is 'NO' (ie use docker cli)
+#   -t|--tag-em
+#           Default tagging behavior, Build a single image or make semantic versioning tags as well (ie latest, 1.4.2, 1.4, etc). Default = 'NO'
+#   -i|--image-name '$imageName'
+#           The Image Name for the built image
+#   -v|--image-version '$tagVersion'
+#           The Image Tag Version for the built image
+#   -s|--service '$serviceName'
+#           If using Docker Compose to build the image, the service name in the compose file is required.
+#   --build-arg '$key=$value'
+#           Build Args to pass to docker or compose when building the image
+#   --no-cache
+#           Pass the 'no-cache' flag to docker or compose when building the image
+#   -x|--build-context '$buildContext'
+#           Override the default build context ('.')
+#   -d|--domain '$domain'
+#           If connecting to a custom docker domain, set it here. IE 'docker.deepworks.net'
+#   -g|--group '$group'
+#           If the custom docker domain supports groups, it can be set here. Must have (-d|--domain) defined. IE 'images/production'
+#   -p|--publish '$publish'
+#           Publish the images built and tagged
 #
-# This combines the Build and Publish functions into one.
-#
-BUILD_AND_PUBLISH_IMAGE(){
-    BUILD_IMAGE $1 $2 $3
-    PUBLISH_IMAGE $2 $3
+BTP_IMAGE(){
+
+    # Define Docker Utils Strip Prefix Flag to get Default Value - Default = NO
+    local _STRIP_PREFIX=${DOCKER_UTILS_STRIP_PREFIX:-NO}
+    # Define Docker Utils Strip Version Flag to get Default Value - Default = YES
+    local _STRIP_VERSION=${DOCKER_UTILS_STRIP_VERSION:-YES}
+    # Define Docker Utils Use Compose Flag to get Default Value - Default = NO
+    local _USE_COMPOSE=${DOCKER_UTILS_USE_COMPOSE:-NO}
+    # Define Docker Tagging Beghavior to get Default Value - Default = NO (Only build, don't tag)
+    local _TAG_EM=${DOCKER_UTILS_TAG_EM:-NO}
+    # Define Docker Domain (for Private Repository)
+    local _DOCKER_DOMAIN=${DOCKER_UTILS_DOCKER_DOMAIN}
+    # Define Docker Group (for Private Repository)
+    local _DOCKER_GROUP=${DOCKER_UTILS_DOCKER_GROUP}
+    # Define Docker DEBUG Option (for debugging!)
+    local _DOCKER_DEBUG=${DOCKER_UTILS_DEBUG:-NO}
+    # Define Docker Publishing Behavior
+    local _DOCKER_PUBLISH=${DOCKER_UTILS_PUBLISH:-NO}
+
+    # Define Potential Defaults
+    local _IMAGE_NAME=${IMAGE_NAME};
+    local _IMAGE_VERSION=${IMAGE_VERSION:-latest};
+    local _BUILD_ARGS="";
+    local _NO_CACHE="";
+    local _BUILD_CONTEXT=".";
+    local _USE_PRIV="NO"
+
+    # Parameter Overrides
+    while [[ "$#" -gt 0 ]]
+    do
+        case $1 in
+            --strip-prefix)
+            local _STRIP_PREFIX=${2:-$_STRIP_PREFIX}
+            ;;
+            ---strip-version)
+            local _STRIP_VERSION=${2:-$_STRIP_VERSION}
+            ;;
+            -c|--compose)
+            local _USE_COMPOSE="YES"
+            ;;
+            -i|--image-name)
+            local _IMAGE_NAME=${2:-${_IMAGE_NAME:?err}}
+            ;;
+            -v|--image-version)
+            local _IMAGE_VERSION=${2:-${_IMAGE_VERSION}}
+            ;;
+            -s|--service)
+            local _SERVICE_NAME=${2:-latest}
+            ;;
+            --build-arg)
+                if test ! -z $2; then
+                    local _BUILD_ARGS="$_BUILD_ARGS--build-arg $2 "
+                fi
+            ;;
+            --no-cache)
+            local _NO_CACHE="--no-cache ";
+            ;;
+            -x|--build-context)
+            local _BUILD_CONTEXT=${2:-$_BUILD_CONTEXT}
+            ;;
+            -t|--tag-em)
+            local _TAG_EM="YES"
+            ;;
+            -d|--domain)
+            local _DOCKER_DOMAIN=${2:-$_DOCKER_DOMAIN}
+            ;;
+            -g|--group)
+            local _DOCKER_GROUP=${2:-$_DOCKER_GROUP}
+            ;;
+            -p|--publish)
+            local _DOCKER_PUBLISH=${2:-$_DOCKER_PUBLISH}
+            ;;
+        esac
+        shift
+    done
+
+    local _VALID_TAG=$(IS_VALID_TAG $_IMAGE_VERSION)
+
+    # Tag Behavior Override
+    if [ "$_VALID_TAG" = "false" ] || [ $_IMAGE_VERSION = "latest" ]; then
+        local _TAG_VERSION=$_IMAGE_VERSION; 
+    else 
+
+        local _BUILD_PREFIX=$(GET_BUILD_PREFIX $_IMAGE_VERSION)
+        local _MAJOR_VERSION=$(GET_MAJOR_VERSION $_IMAGE_VERSION)
+        local _MINOR_VERSION=$(GET_MINOR_VERSION $_IMAGE_VERSION)
+        local _PATCH_VERSION=$(GET_PATCH_VERSION $_IMAGE_VERSION)
+        local _BUILD_STAGE=$(GET_BUILD_STAGE $_IMAGE_VERSION)
+
+        if [ "$_STRIP_PREFIX" = "NO" ] && test ! -z "$_BUILD_PREFIX"; then
+            local _TAG_VERSION="$_BUILD_PREFIX-";
+            local _TAG_VERSIONL="$_TAG_VERSION"
+            local _TAG_VERSION_ALT="$_BUILD_PREFIX"
+        fi
+
+        local _TAG_VERSIONL="$_TAG_VERSIONL""latest"
+
+        # This should never fail as 'valid' tags should always have at least a major version number...
+        if test ! -z "$_MAJOR_VERSION"; then
+
+            if [ "$_STRIP_VERSION" = "NO" ]; then
+                local _TAG_VERSION="$_TAG_VERSION""v";
+            fi
+            local _TAG_VERSION="$_TAG_VERSION$_MAJOR_VERSION";
+            local _TAG_VERSION_MAJOR="$_TAG_VERSION"
+
+            if test ! -z "$_MINOR_VERSION"; then
+                local _TAG_VERSION="$_TAG_VERSION.$_MINOR_VERSION";
+                local _TAG_VERSION_MINOR="$_TAG_VERSION"
+
+                if test ! -z "$_PATCH_VERSION"; then
+                    local _TAG_VERSION="$_TAG_VERSION.$_PATCH_VERSION";
+                    local _TAG_VERSION_BUILD="$_TAG_VERSION"
+                fi
+            fi
+        fi
+
+        if test ! -z "$_BUILD_STAGE"; then
+            local _TAG_VERSION="$_TAG_VERSION-$_BUILD_STAGE";
+            if test ! -z "$_TAG_VERSION_ALT"; then _TAG_VERSION_ALT="$_TAG_VERSION_ALT-$_BUILD_STAGE"; fi
+            if test ! -z "$_TAG_VERSION_MINOR"; then local _TAG_VERSION_MINOR="$_TAG_VERSION_MINOR-$_BUILD_STAGE"; fi
+            if test ! -z "$_TAG_VERSION_MAJOR"; then local _TAG_VERSION_MAJOR="$_TAG_VERSION_MAJOR-$_BUILD_STAGE"; fi
+            if test ! -z "$_TAG_VERSIONL"; then local _TAG_VERSIONL="$_TAG_VERSIONL-$_BUILD_STAGE"; fi
+        fi
+
+    fi
+
+    # 'Private' Repo Behavior
+    local _THE_PATH=${_IMAGE_NAME}
+    if test ! -z "${_DOCKER_DOMAIN}"; then 
+        local _USE_PRIV="YES"
+        if test ! -z "${_DOCKER_GROUP}"; then local _THE_PATH=${_DOCKER_GROUP}/$_THE_PATH; fi
+        local _THE_PATH=${_DOCKER_DOMAIN}/$_THE_PATH;
+    fi
+
+    # Build Behavior (Docker or Compose)
+    if [ "$_DOCKER_PUBLISH" != "ONLY" ]; then
+        if [ "$_USE_COMPOSE" = "NO" ]; then 
+            local _BUILD_STATEMENT="docker build -t $_IMAGE_NAME:$_TAG_VERSION \
+                --build-arg IMAGE_NAME=$_IMAGE_NAME \
+                --build-arg IMAGE_VERSION=$_TAG_VERSION \
+                $_BUILD_ARGS \
+                $_NO_CACHE \
+                $_BUILD_CONTEXT"
+            echo $_BUILD_STATEMENT;
+            if [ "$_DOCKER_DEBUG" != "YES" ]; then
+                eval $_BUILD_STATEMENT;
+            fi
+        else 
+            local _BUILD_STATEMENT="IMAGE_NAME=$_IMAGE_NAME \
+            IMAGE_VERSION=$_TAG_VERSION \
+            docker compose build $_SERVICE_NAME \
+                --build-arg IMAGE_NAME=$_IMAGE_NAME \
+                --build-arg IMAGE_VERSION=$_TAG_VERSION \
+                $_BUILD_ARGS \
+                $_NO_CACHE"
+            echo $_BUILD_STATEMENT;
+            if [ "$_DOCKER_DEBUG" != "YES" ]; then
+                eval $_BUILD_STATEMENT;
+            fi
+        fi
+    fi
+
+    if [ "$_USE_PRIV" = "YES" ]; then 
+        GET_TAG_N_PUBLISH "${_IMAGE_NAME}:$_TAG_VERSION" "${_THE_PATH}:${_TAG_VERSION}" "$_DOCKER_PUBLISH" "$_DOCKER_DEBUG"
+    else
+        GET_TAG_N_PUBLISH "${_IMAGE_NAME}:$_TAG_VERSION" "${_IMAGE_NAME}:${_TAG_VERSION}" "$_DOCKER_PUBLISH" "$_DOCKER_DEBUG"
+    fi
+
+    # To Tag or Not To Tag? That is the Question....
+    if [ "$_TAG_EM" = "YES" ] && [ "$_TAG_VERSION" != "latest" ] && [ "$_VALID_TAG" != "false" ]; then
+
+        local _TMP_PUBLISH=$_DOCKER_PUBLISH
+        if [ "$_USE_PRIV" = "YES" ] && ([ "$_DOCKER_PUBLISH" = "YES" ] || [ "$_DOCKER_PUBLISH" = "ONLY" ]); then local _TMP_PUBLISH='NO'; fi
+
+        if [ "$_DOCKER_DEBUG" = "YES" ]; then
+            echo "$_TAG_VERSION"
+            echo "$_TAG_VERSION_MINOR"
+            echo "$_TAG_VERSION_MAJOR"
+            echo "$_TAG_VERSIONL"
+            echo "$_TAG_VERSION_ALT"
+        fi
+
+        GET_TAG_N_PUBLISH "${_IMAGE_NAME}:$_TAG_VERSION" "${_IMAGE_NAME}:${_TAG_VERSIONL}" "$_TMP_PUBLISH" "$_DOCKER_DEBUG"
+        if test ! -z "$_TAG_VERSION_MAJOR" && [ "$_TAG_VERSION_MAJOR" != "$_TAG_VERSION" ]; then 
+            GET_TAG_N_PUBLISH "${_IMAGE_NAME}:$_TAG_VERSION" "${_IMAGE_NAME}:${_TAG_VERSION_MAJOR}" "$_TMP_PUBLISH" "$_DOCKER_DEBUG"
+        fi
+        if test ! -z "$_TAG_VERSION_MINOR" && [ "$_TAG_VERSION_MINOR" != "$_TAG_VERSION" ]; then 
+            GET_TAG_N_PUBLISH "${_IMAGE_NAME}:$_TAG_VERSION" "${_IMAGE_NAME}:${_TAG_VERSION_MINOR}" "$_TMP_PUBLISH" "$_DOCKER_DEBUG"
+        fi
+        if test ! -z "$_TAG_VERSION_ALT"; then 
+            GET_TAG_N_PUBLISH "${_IMAGE_NAME}:$_TAG_VERSION" "${_IMAGE_NAME}:${_TAG_VERSION_ALT}" "$_TMP_PUBLISH" "$_DOCKER_DEBUG"
+        fi
+
+        if [ "$_USE_PRIV" = "YES" ]; then
+            GET_TAG_N_PUBLISH "${_IMAGE_NAME}:$_TAG_VERSION" "${_THE_PATH}:${_TAG_VERSIONL}" "$_DOCKER_PUBLISH" "$_DOCKER_DEBUG"
+            if test ! -z "$_TAG_VERSION_MAJOR" && [ "$_TAG_VERSION_MAJOR" != "$_TAG_VERSION" ]; then 
+               GET_TAG_N_PUBLISH "${_IMAGE_NAME}:$_TAG_VERSION" "${_THE_PATH}:${_TAG_VERSION_MAJOR}" "$_DOCKER_PUBLISH" "$_DOCKER_DEBUG"
+            fi
+            if test ! -z "$_TAG_VERSION_MINOR" && [ "$_TAG_VERSION_MINOR" != "$_TAG_VERSION" ]; then 
+                GET_TAG_N_PUBLISH "${_IMAGE_NAME}:$_TAG_VERSION" "${_THE_PATH}:${_TAG_VERSION_MINOR}" "$_DOCKER_PUBLISH" "$_DOCKER_DEBUG"
+            fi
+            if test ! -z "$_TAG_VERSION_ALT"; then 
+                GET_TAG_N_PUBLISH "${_IMAGE_NAME}:$_TAG_VERSION" "${_THE_PATH}:${_TAG_VERSION_ALT}" "$_DOCKER_PUBLISH" "$_DOCKER_DEBUG"
+            fi
+        fi
+
+    fi
+
 }
