@@ -1,4 +1,4 @@
-# Docker Utility Scripts (v0.2.0-beta.rc1)
+# Docker Utility Scripts (v0.2.0-beta.rc2)
 These scripts/libraries aid in common Docker development tasks like building, tagging and publishing images.
 
 ## Dependencies

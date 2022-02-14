@@ -4,6 +4,12 @@
 # HOMEDIR = The directory where the branding is placed
 # THEEMAIL = Email address for the image info
 
+# Load Functions
+. ./utils/funcs.sh
+
+# Load variables
+GET_ENV_VARS ".env"
+
 #echo "${HOMEDIR}"
 
 # Set default vars.

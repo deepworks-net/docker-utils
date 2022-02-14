@@ -1,6 +1,10 @@
 # Docker Utility Scripts Technical Change Log
 
-#### (02/12/2022) 0.2.0-beta.rc1:
+#### (02/13/2022) 0.2.0-beta.rc2:
+- [info.sh](info.sh)
+    - Included funcs.sh to fix info file issues.
+
+#### (02/13/2022) 0.2.0-beta.rc1:
 - [docs/](docs)
     - Updated [funcs.md](docs/funcs.md)
     - Updated [info.md](docs/info.md)
