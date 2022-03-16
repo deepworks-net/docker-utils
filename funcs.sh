@@ -66,7 +66,8 @@ GET_BUILD_STAGE(){
 # 
 # NOTE: This function currently expects the variable file to exist, and will not catch the error if not!
 GET_ENV_VARS(){
-    export $(cat $1 | sed 's/#.*//g' | xargs)
+    # Needs this to account for Windows/Gitbash Conversion
+    MSYS_NO_PATHCONV=1 export $(cat $1 | sed 's/#.*//g' | xargs)
 }
 
 # echo, then evaluate a statement or just echo it

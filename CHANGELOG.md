@@ -1,10 +1,14 @@
 # Docker Utility Scripts Technical Change Log
 
-#### (02/13/2022) 0.2.0-beta.rc2:
+#### (03/15/2022) 0.2.2-beta:
+- [funcs.sh](funcs.sh):
+    - Added MSYS_NO_PATHCONV=1 env var when loading variables to prevent Windows from converting the path to the C:
+
+#### (02/13/2022) 0.2.1-beta:
 - [info.sh](info.sh)
     - Included funcs.sh to fix info file issues.
 
-#### (02/13/2022) 0.2.0-beta.rc1:
+#### (02/13/2022) 0.2.0-beta:
 - [docs/](docs)
     - Updated [funcs.md](docs/funcs.md)
     - Updated [info.md](docs/info.md)
